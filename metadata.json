@@ -1,0 +1,5 @@
+{
+  "name": "RescueBot AI",
+  "description": "A simulation-first autonomous robotics platform for disaster search-and-rescue. Demonstrates end-to-end autonomy using Gemini for high-level decision making and perceptual reasoning in unknown environments.",
+  "requestFramePermissions": []
+}
