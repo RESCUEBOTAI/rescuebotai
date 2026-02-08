@@ -1,7 +1,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Cell, RobotState, DecisionResponse } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({
+  apiKey: import.meta.env.VITE_GEMINI_API_KEY!,
+});
 
 const SYSTEM_INSTRUCTION = `
 You are the **Autonomous Intelligence Layer** of a specialized Search-and-Rescue Robot.
