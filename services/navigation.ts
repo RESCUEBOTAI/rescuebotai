@@ -1,4 +1,4 @@
-import { Cell, Coordinates, CellType, RobotState, SystemModule } from '../types';
+import { Cell, Coordinates, CellType, RobotState, SystemModule, RobotConfig } from '../types';
 import { GRID_SIZE, MOVEMENT_COST } from '../constants';
 
 /**
@@ -95,7 +95,8 @@ export const executeControlStep = (
   currentPos: Coordinates,
   nextPos: Coordinates,
   currentBattery: number,
-  cellType: CellType
+  cellType: CellType,
+  robotConfig?: RobotConfig
 ): { success: boolean, newBattery: number, message?: string } => {
   
   // Physics Check
@@ -106,7 +107,11 @@ export const executeControlStep = (
   // Energy Physics
   const cost = MOVEMENT_COST[cellType] || 1;
   // Base drain + Terrain Modifier
-  const drain = 0.5 * cost; 
+  // Apply speed multiplier: faster robots drain more battery
+  // Apply battery drain rate: affects how quickly battery depletes
+  const speedMultiplier = robotConfig?.speedMultiplier || 1.0;
+  const batteryDrainRate = robotConfig?.batteryDrainRate || 1.0;
+  const drain = 0.5 * cost * speedMultiplier * batteryDrainRate; 
   const newBattery = Math.max(0, currentBattery - drain);
 
   return { success: true, newBattery };

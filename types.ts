@@ -94,3 +94,13 @@ export interface ScenarioConfig {
   fireCount: number;
   seed?: number; // For reproducibility
 }
+
+// Robot Configuration for Onboarding
+export interface RobotConfig {
+  id: string;
+  name: string;
+  description: string;
+  speedMultiplier: number;      // 0.5 - 2.0 (affects movement speed)
+  batteryDrainRate: number;     // 0.5 - 1.5 (multiplier on battery consumption)
+  maxHealth: number;            // 80 - 120 (starting health)
+}

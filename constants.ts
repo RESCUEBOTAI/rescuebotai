@@ -1,4 +1,4 @@
-import { CellType, ScenarioConfig } from './types';
+import { CellType, ScenarioConfig, RobotConfig } from './types';
 
 export const GRID_SIZE = 15;
 export const CELL_SIZE_PX = 40;
@@ -70,5 +70,25 @@ export const SCENARIOS: ScenarioConfig[] = [
     obstacleDensity: 0.05,
     victimCount: 5,
     fireCount: 0
+  }
+];
+
+// Robot Type Configurations
+export const ROBOT_TYPES: RobotConfig[] = [
+  {
+    id: 'drone',
+    name: 'Aerial Drone',
+    description: 'Fast and agile, but fragile. Ideal for rapid exploration and reconnaissance.',
+    speedMultiplier: 1.5,
+    batteryDrainRate: 1.3,
+    maxHealth: 80
+  },
+  {
+    id: 'rover',
+    name: 'Ground Rover',
+    description: 'Durable and efficient. Better suited for hazardous terrain and extended missions.',
+    speedMultiplier: 0.8,
+    batteryDrainRate: 0.7,
+    maxHealth: 120
   }
 ];
