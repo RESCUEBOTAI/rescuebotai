@@ -26,15 +26,20 @@ import * as Telemetry from './services/telemetry';
 import SimulationGrid from './components/SimulationGrid';
 import MetricsPanel from './components/MetricsPanel';
 import TerminalLog from './components/TerminalLog';
+import WizardModal from './components/Onboarding/WizardModal';
+import { useOnboardingStore } from './store/onboardingStore';
 import { v4 as uuidv4 } from 'uuid';
 
 const App: React.FC = () => {
+  // --- Onboarding State ---
+  const { hasCompletedOnboarding, scenarioConfig, robotConfig, resetOnboarding } = useOnboardingStore();
+
   // --- Simulation State (Digital Twin) ---
   const [grid, setGrid] = useState<Cell[][]>([]); // The "Truth"
   const [robot, setRobot] = useState<RobotState>({
     pos: { x: 0, y: 0 },
     battery: MAX_BATTERY,
-    health: MAX_HEALTH,
+    health: robotConfig?.maxHealth || MAX_HEALTH,
     status: RobotStatus.IDLE,
     victimsRescued: 0,
     firesExtinguished: 0,
@@ -51,8 +56,11 @@ const App: React.FC = () => {
   });
   
   const [isRunning, setIsRunning] = useState(false);
-  const [selectedScenarioId, setSelectedScenarioId] = useState<string>(SCENARIOS[0].id);
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string>(
+    scenarioConfig?.id || SCENARIOS[0].id
+  );
   const [cellSize, setCellSize] = useState<number>(CELL_SIZE_PX);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // --- Helpers ---
   const log = (source: SystemModule, msg: string, type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR' = 'INFO') => {
@@ -68,9 +76,15 @@ const App: React.FC = () => {
       log(SystemModule.SAFETY, "EMERGENCY STOP TRIGGERED BY OPERATOR. ALL SYSTEMS HALTED.", "ERROR");
   };
 
+  const handleResetOnboarding = () => {
+    resetOnboarding();
+    setShowResetConfirm(false);
+  };
+
   // --- Initialization (Simulation Layer) ---
   const initSimulation = useCallback(() => {
-    const scenario = SCENARIOS.find(s => s.id === selectedScenarioId) || SCENARIOS[0];
+    // Use scenarioConfig from store if available, otherwise use selected scenario
+    const scenario = scenarioConfig || SCENARIOS.find(s => s.id === selectedScenarioId) || SCENARIOS[0];
     const newGrid: Cell[][] = [];
     
     // Generate Procedural Map based on Scenario
@@ -109,7 +123,7 @@ const App: React.FC = () => {
     setRobot({
       pos: { x: 0, y: 0 },
       battery: MAX_BATTERY,
-      health: MAX_HEALTH,
+      health: robotConfig?.maxHealth || MAX_HEALTH,
       status: RobotStatus.IDLE,
       victimsRescued: 0,
       firesExtinguished: 0,
@@ -131,7 +145,7 @@ const App: React.FC = () => {
       ...prev,
       logs: [Telemetry.createLog(SystemModule.SIMULATION, `Scenario Loaded: ${scenario.name}`)]
     }));
-  }, [selectedScenarioId]);
+  }, [selectedScenarioId, scenarioConfig, robotConfig]);
 
   useEffect(() => { initSimulation(); }, [initSimulation]);
 
@@ -255,9 +269,10 @@ const App: React.FC = () => {
                 ng[nextStep.y][nextStep.x].type = CellType.DEBRIS;
                 return ng;
              });
+             const batteryDrainRate = robotConfig?.batteryDrainRate || 1.0;
              setRobot(prev => ({ 
                ...prev, 
-               battery: prev.battery - 5, 
+               battery: prev.battery - (5 * batteryDrainRate), 
                firesExtinguished: prev.firesExtinguished + 1 
              }));
              return; // Action consumes tick
@@ -270,12 +285,13 @@ const App: React.FC = () => {
                 ng[nextStep.y][nextStep.x].type = CellType.EMPTY;
                 return ng;
              });
+             const batteryDrainRate = robotConfig?.batteryDrainRate || 1.0;
              setRobot(prev => ({
                ...prev,
                pos: nextStep,
                path: prev.path.slice(1),
                victimsRescued: prev.victimsRescued + 1,
-               battery: prev.battery - 10
+               battery: prev.battery - (10 * batteryDrainRate)
              }));
              return;
           }
@@ -285,7 +301,8 @@ const App: React.FC = () => {
             robot.pos, 
             nextStep, 
             robot.battery, 
-            targetCell.type
+            targetCell.type,
+            robotConfig || undefined
           );
 
           if (controlResult.success) {
@@ -327,6 +344,11 @@ const App: React.FC = () => {
     return () => { if (intervalId) clearInterval(intervalId); };
   }, [isRunning, robot, grid]);
 
+  // --- Conditional Rendering: Show wizard if onboarding not completed ---
+  if (!hasCompletedOnboarding) {
+    return <WizardModal />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-200 p-6 flex flex-col items-center">
       <header className="w-full max-w-7xl flex flex-col md:flex-row justify-between items-center mb-8 border-b border-slate-700 pb-4 gap-4">
@@ -335,8 +357,9 @@ const App: React.FC = () => {
           <p className="text-slate-500 text-sm">Autonomous Robotics Platform // <span className="text-emerald-500">v2.1 Architecture</span></p>
         </div>
         
-        {/* Scenario Selection */}
-        <div className="flex items-center gap-4">
+        {/* Scenario Selection - Only show if no scenario from onboarding */}
+        {!scenarioConfig && (
+          <div className="flex items-center gap-4">
             <div className="flex flex-col">
                 <label className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Mission Scenario</label>
                 <select 
@@ -354,6 +377,10 @@ const App: React.FC = () => {
             </div>
 
             <div className="h-10 w-px bg-slate-700 mx-2"></div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-4">
 
             <button 
               onClick={() => setIsRunning(!isRunning)}
@@ -381,8 +408,44 @@ const App: React.FC = () => {
             >
                 E-STOP
             </button>
+
+            {/* Reset Onboarding Button */}
+            <button 
+                onClick={() => setShowResetConfirm(true)}
+                className="ml-2 px-3 py-2 rounded font-mono text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 border border-slate-600"
+                title="Reset Onboarding - Go through setup wizard again"
+            >
+                ⚙️ RESET SETUP
+            </button>
         </div>
       </header>
+
+      {/* Reset Onboarding Confirmation Dialog */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-slate-800 border-2 border-slate-600 rounded-lg p-6 max-w-md mx-4 shadow-2xl">
+            <h3 className="text-xl font-bold font-mono text-blue-400 mb-3">Reset Onboarding?</h3>
+            <p className="text-slate-300 text-sm mb-6">
+              This will clear your saved preferences and show the setup wizard again. 
+              You'll be able to choose a new scenario and robot type.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="px-4 py-2 rounded font-mono text-sm bg-slate-700 hover:bg-slate-600 text-slate-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleResetOnboarding}
+                className="px-4 py-2 rounded font-mono text-sm bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Reset Setup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-7 flex flex-col gap-6">
